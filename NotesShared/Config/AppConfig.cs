@@ -12,5 +12,7 @@ namespace NotesShared.Config
             "Host=localhost;Port=5432;Database=NotesSystemDB;Username=vitalya;Password=12345";
 
         public static string AppVersion = "1.0.0";
+        public static string UpdateInfoUrl =
+           "https://raw.githubusercontent.com/Vitalya1357/NotesSystem/main/releases/version.json";
     }
 }

@@ -10,6 +10,7 @@ namespace NotesCli
         private static NoteService noteService = new NoteService();
         private static SecurityLogService securityLogService = new SecurityLogService();
         private static SystemMetricService systemMetricService = new SystemMetricService();
+        private static UpdateService updateService = new UpdateService();
         static void Main(string[] args)
         {
             Console.OutputEncoding = System.Text.Encoding.UTF8;
@@ -346,6 +347,64 @@ namespace NotesCli
                             }
 
                             break;
+                        case "--version":
+                            Console.WriteLine("Текущая версия приложения: " + updateService.GetCurrentVersion());
+                            break;
+
+
+                        case "--checkUpdate":
+                            try
+                            {
+                                NotesShared.Models.UpdateInfo updateInfo = updateService.GetLatestVersionInfo();
+
+                                Console.WriteLine("Текущая версия: " + updateService.GetCurrentVersion());
+                                Console.WriteLine("Последняя версия на GitHub: " + updateInfo.Version);
+
+                                if (updateService.IsUpdateAvailable())
+                                {
+                                    Console.WriteLine("Доступно обновление.");
+                                    Console.WriteLine("Ссылка: " + updateInfo.DownloadUrl);
+                                }
+                                else
+                                {
+                                    Console.WriteLine("У вас установлена актуальная версия.");
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine("Ошибка проверки обновлений:");
+                                Console.WriteLine(ex.Message);
+                            }
+
+                            break;
+
+
+                        case "--update":
+                            try
+                            {
+                                NotesShared.Models.UpdateInfo updateInfo = updateService.GetLatestVersionInfo();
+
+                                if (!updateService.IsUpdateAvailable())
+                                {
+                                    Console.WriteLine("Обновление не требуется.");
+                                    break;
+                                }
+
+                                string outputFile = "NotesSystem_update.zip";
+
+                                Console.WriteLine("Скачивание обновления...");
+                                updateService.DownloadUpdate(updateInfo.DownloadUrl, outputFile);
+
+                                Console.WriteLine("Обновление скачано в файл: " + outputFile);
+                                Console.WriteLine("Распакуйте архив и замените файлы приложения.");
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine("Ошибка обновления:");
+                                Console.WriteLine(ex.Message);
+                            }
+
+                            break;
 
                         default:
                             Console.WriteLine("Неизвестная команда. Введите --help.");
@@ -372,6 +431,9 @@ namespace NotesCli
             Console.WriteLine("--deleteNote <id>                   Удалить заметку");
             Console.WriteLine("--restoreNote <id>                  Восстановить заметку");
             Console.WriteLine("--help                              Показать справку");
+            Console.WriteLine("--version                           Показать текущую версию");
+            Console.WriteLine("--checkUpdate                       Проверить обновления через GitHub");
+            Console.WriteLine("--update                            Скачать обновление");
             Console.WriteLine("--securityLogs list                 Показать последние 50 логов безопасности");
             Console.WriteLine("--systemStats local                 Показать CPU/RAM/HDD текущего устройства");
             Console.WriteLine("--systemStats history               Показать последние записи статистики из БД");
