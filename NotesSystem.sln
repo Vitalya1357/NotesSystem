@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NotesWatcher", "NotesWatche
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NotesShared", "NotesShared\NotesShared.csproj", "{79B7785C-C2D0-4377-9EF4-4E62C2C37912}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NotesUnitTests", "NotesUnitTests\NotesUnitTests.csproj", "{4D4D1881-B1AD-49A9-80E0-CE8685FFCCE4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -33,6 +35,10 @@ Global
 		{79B7785C-C2D0-4377-9EF4-4E62C2C37912}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{79B7785C-C2D0-4377-9EF4-4E62C2C37912}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{79B7785C-C2D0-4377-9EF4-4E62C2C37912}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4D4D1881-B1AD-49A9-80E0-CE8685FFCCE4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4D4D1881-B1AD-49A9-80E0-CE8685FFCCE4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4D4D1881-B1AD-49A9-80E0-CE8685FFCCE4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4D4D1881-B1AD-49A9-80E0-CE8685FFCCE4}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -13,6 +13,6 @@ namespace NotesShared.Config
 
         public static string AppVersion = "1.0.0";
         public static string UpdateInfoUrl =
-           "https://raw.githubusercontent.com/Vitalya1357/NotesSystem/main/releases/version.json";
+           "https://raw.githubusercontent.com/Vitalya1357/NotesSystem/develop/releases/version.json";
     }
 }
