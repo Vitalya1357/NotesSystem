@@ -1,0 +1,15 @@
+.vs/
+*.user
+*.suo
+bin/
+obj/
+Build/
+Debug/
+Release/
+x64/
+x86/
+packages/
+*.nupkg
+*.log
+Thumbs.db
+.DS_Store
