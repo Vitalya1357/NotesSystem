@@ -1,48 +1,53 @@
-﻿using System.Collections.Generic;
-using Npgsql;
-using NotesShared.Database;
+﻿using NotesShared.Database;
 using NotesShared.Models;
+using Npgsql;
+using System;
+using System.Collections.Generic;
 
 namespace NotesShared.Services
 {
     public class SecurityLogService
     {
-        public List<SecurityLog> GetLastLogs(int limit)
+        public List<SecurityLog> GetSecurityLogs()
         {
             List<SecurityLog> logs = new List<SecurityLog>();
 
-            using (NpgsqlConnection connection = DatabaseConnection.CreateConnection())
+            using (var connection = DatabaseConnection.CreateConnection())
             {
                 connection.Open();
 
                 string sql = @"
-                    SELECT id, user_id, event_type, description, created_at
-                    FROM security_logs
-                    ORDER BY id DESC
-                    LIMIT @limit;";
+                    SELECT
+                        sl.id,
+                        sl.user_id,
+                        u.username,
+                        sl.event_type,
+                        sl.description,
+                        sl.created_at
+                    FROM security_logs sl
+                    LEFT JOIN users u ON sl.user_id = u.id
+                    ORDER BY sl.created_at DESC
+                    LIMIT 50;
+                ";
 
-                using (NpgsqlCommand command = new NpgsqlCommand(sql, connection))
+                using (var command = new NpgsqlCommand(sql, connection))
                 {
-                    command.Parameters.AddWithValue("limit", limit);
-
-                    using (NpgsqlDataReader reader = command.ExecuteReader())
+                    using (var reader = command.ExecuteReader())
                     {
                         while (reader.Read())
                         {
                             SecurityLog log = new SecurityLog();
 
                             log.Id = reader.GetInt32(reader.GetOrdinal("id"));
+                            log.UserId = reader.GetInt32(reader.GetOrdinal("user_id"));
 
-                            int userIdIndex = reader.GetOrdinal("user_id");
-                            if (!reader.IsDBNull(userIdIndex))
-                                log.UserId = reader.GetInt32(userIdIndex);
+                            if (reader.IsDBNull(reader.GetOrdinal("username")))
+                                log.Username = "unknown";
+                            else
+                                log.Username = reader.GetString(reader.GetOrdinal("username"));
 
                             log.EventType = reader.GetString(reader.GetOrdinal("event_type"));
-
-                            int descriptionIndex = reader.GetOrdinal("description");
-                            if (!reader.IsDBNull(descriptionIndex))
-                                log.Description = reader.GetString(descriptionIndex);
-
+                            log.Description = reader.GetString(reader.GetOrdinal("description"));
                             log.CreatedAt = reader.GetDateTime(reader.GetOrdinal("created_at"));
 
                             logs.Add(log);
@@ -54,25 +59,22 @@ namespace NotesShared.Services
             return logs;
         }
 
-        public void AddLog(int? userId, string eventType, string description)
+        public void AddLog(int userId, string eventType, string description)
         {
-            using (NpgsqlConnection connection = DatabaseConnection.CreateConnection())
+            using (var connection = DatabaseConnection.CreateConnection())
             {
                 connection.Open();
 
                 string sql = @"
-                    INSERT INTO security_logs(user_id, event_type, description)
-                    VALUES (@user_id, @event_type, @description);";
+                    INSERT INTO security_logs (user_id, event_type, description, created_at)
+                    VALUES (@userId, @eventType, @description, NOW());
+                ";
 
-                using (NpgsqlCommand command = new NpgsqlCommand(sql, connection))
+                using (var command = new NpgsqlCommand(sql, connection))
                 {
-                    if (userId.HasValue)
-                        command.Parameters.AddWithValue("user_id", userId.Value);
-                    else
-                        command.Parameters.AddWithValue("user_id", System.DBNull.Value);
-
-                    command.Parameters.AddWithValue("event_type", eventType);
-                    command.Parameters.AddWithValue("description", description);
+                    command.Parameters.AddWithValue("@userId", userId);
+                    command.Parameters.AddWithValue("@eventType", eventType);
+                    command.Parameters.AddWithValue("@description", description);
 
                     command.ExecuteNonQuery();
                 }

@@ -1,4 +1,5 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+using NotesShared.Config;
 using NotesShared.Services;
 
 namespace NotesUnitTests.TestCollection
@@ -6,6 +7,12 @@ namespace NotesUnitTests.TestCollection
     [TestClass]
     public class UnitTest_AuthService
     {
+        [TestInitialize]
+        public void Init()
+        {
+            AppConfig.UseAuthConnection();
+        }
+
         [TestMethod]
         public void Login_AdminWithCorrectPassword_ReturnsTrue()
         {
@@ -53,6 +60,17 @@ namespace NotesUnitTests.TestCollection
             bool result = authService.Login("admin", "wrong_password");
 
             Assert.IsFalse(result);
+        }
+
+        [TestMethod]
+        public void Logout_AfterLogin_UserIsNotLoggedIn()
+        {
+            AuthService authService = new AuthService();
+
+            authService.Login("admin", "admin123");
+            authService.Logout();
+
+            Assert.IsFalse(authService.IsLoggedIn);
             Assert.IsNull(authService.CurrentUser);
         }
     }

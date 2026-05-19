@@ -3,6 +3,7 @@ using Npgsql;
 using NotesShared.Database;
 using NotesShared.Models;
 using NotesShared.Utils;
+using NotesShared.Config;
 
 namespace NotesShared.Services
 {
@@ -17,6 +18,8 @@ namespace NotesShared.Services
 
         public bool Login(string username, string password)
         {
+
+
             string passwordHash = PasswordHasher.Hash(password);
 
             using (NpgsqlConnection connection = DatabaseConnection.CreateConnection())
@@ -34,12 +37,13 @@ namespace NotesShared.Services
                     {
                         if (reader.Read())
                         {
-                            CurrentUser = new User
-                            {
-                                Id = reader.GetInt32(reader.GetOrdinal("user_id")),
-                                Username = reader.GetString(reader.GetOrdinal("username")),
-                                Role = reader.GetString(reader.GetOrdinal("role_name"))
-                            };
+                            CurrentUser = new User();
+                            CurrentUser.Id = reader.GetInt32(reader.GetOrdinal("user_id"));
+                            CurrentUser.Username = reader.GetString(reader.GetOrdinal("username"));
+                            CurrentUser.Role = reader.GetString(reader.GetOrdinal("role_name"));
+
+                            string connectionString = reader.GetString(reader.GetOrdinal("connection_string"));
+                            AppConfig.UseConnectionString(connectionString);
 
                             return true;
                         }
@@ -53,6 +57,8 @@ namespace NotesShared.Services
         public void Logout()
         {
             CurrentUser = null;
+            AppConfig.ClearRuntimeConnectionString();
+            AppConfig.UseAuthConnection();
         }
 
         public bool HasRole(params string[] roles)

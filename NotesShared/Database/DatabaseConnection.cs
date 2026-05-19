@@ -12,7 +12,7 @@ namespace NotesShared.Database
     {
         public static NpgsqlConnection CreateConnection()
         {
-            return new NpgsqlConnection(AppConfig.ConnectionString);
+            return new NpgsqlConnection(AppConfig.GetConnectionString());
         }
     }
 }

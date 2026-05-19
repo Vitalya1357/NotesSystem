@@ -10,11 +10,5 @@ namespace NotesShared.Models
         public double RamUsage { get; set; }
         public double HddUsage { get; set; }
         public DateTime CreatedAt { get; set; }
-
-        public SystemMetric()
-        {
-            DeviceName = "";
-            IpAddress = "";
-        }
     }
 }

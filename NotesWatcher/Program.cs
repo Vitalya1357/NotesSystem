@@ -1,6 +1,6 @@
 ﻿using System;
+using System.Reflection;
 using System.Threading;
-using NotesShared.Models;
 using NotesShared.Services;
 
 namespace NotesWatcher
@@ -15,7 +15,7 @@ namespace NotesWatcher
 
             Console.WriteLine("=== NotesWatcher Agent ===");
             Console.WriteLine("Агент мониторинга запущен.");
-            Console.WriteLine("Каждые 30 секунд статистика будет отправляться в PostgreSQL.");
+            Console.WriteLine("Каждые 30 секунд будет показываться статистика текущего устройства.");
             Console.WriteLine("Для остановки нажмите Ctrl + C.");
             Console.WriteLine();
 
@@ -23,25 +23,51 @@ namespace NotesWatcher
             {
                 try
                 {
-                    SystemMetric metric = metricService.GetLocalStats();
-                    metricService.SaveMetric(metric);
+                    object metric = metricService.GetLocalStats();
 
-                    Console.WriteLine(
-                        DateTime.Now +
-                        " | " + metric.DeviceName +
-                        " | CPU: " + metric.CpuUsage + "%" +
-                        " | RAM: " + metric.RamUsage + "%" +
-                        " | HDD: " + metric.HddUsage + "%"
-                    );
+                    Console.WriteLine("Время: " + GetValue(metric, "CreatedAt", "created_at"));
+                    Console.WriteLine("Устройство: " + GetValue(metric, "DeviceName", "device_name", "ComputerName"));
+                    Console.WriteLine("IP: " + GetValue(metric, "IpAddress", "IPAddress", "ip_address"));
+                    Console.WriteLine("CPU: " + GetValue(metric, "CpuUsage", "CPU", "cpu_usage") + "%");
+                    Console.WriteLine("RAM: " + GetValue(metric, "RamUsage", "RAM", "ram_usage") + "%");
+                    Console.WriteLine("HDD: " + GetValue(metric, "HddUsage", "HDD", "hdd_usage") + "%");
+                    Console.WriteLine("--------------------------------");
+
+                    Thread.Sleep(30000);
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine("Ошибка агента:");
-                    Console.WriteLine(ex.Message);
-                }
+                    Console.WriteLine("Ошибка Watcher: " + ex.Message);
+                    Console.WriteLine("--------------------------------");
 
-                Thread.Sleep(30000);
+                    Thread.Sleep(30000);
+                }
             }
+        }
+
+        static string GetValue(object obj, params string[] names)
+        {
+            if (obj == null)
+                return "";
+
+            Type type = obj.GetType();
+
+            foreach (string name in names)
+            {
+                PropertyInfo property = type.GetProperty(name);
+
+                if (property != null)
+                {
+                    object value = property.GetValue(obj, null);
+
+                    if (value == null)
+                        return "";
+
+                    return value.ToString();
+                }
+            }
+
+            return "";
         }
     }
 }

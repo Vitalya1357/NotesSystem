@@ -5,7 +5,7 @@ using NotesShared.Services;
 namespace NotesUnitTests.TestCollection
 {
     [TestClass]
-    public class UnitTest_SystemMetricService
+    public class UnitTest_NoteService
     {
         [TestMethod]
         public void GetLocalStats_ReturnsDeviceName()

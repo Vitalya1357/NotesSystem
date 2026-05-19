@@ -1,64 +1,85 @@
-﻿using System.Collections.Generic;
-using Npgsql;
-using NotesShared.Database;
+﻿using NotesShared.Database;
 using NotesShared.Models;
+using Npgsql;
+using System;
+using System.Collections.Generic;
 
 namespace NotesShared.Services
 {
     public class NoteService
     {
-        public int AddNote(int userId, string text)
+        public int AddNote(int userId, string noteText)
         {
-            using (NpgsqlConnection connection = DatabaseConnection.CreateConnection())
-            {
-                connection.Open();
+            int noteId;
 
-                string sql = "SELECT add_note(@user_id, @note_text);";
-
-                using (NpgsqlCommand command = new NpgsqlCommand(sql, connection))
-                {
-                    command.Parameters.AddWithValue("user_id", userId);
-                    command.Parameters.AddWithValue("note_text", text);
-
-                    object result = command.ExecuteScalar();
-                    return int.Parse(result.ToString());
-                }
-            }
-        }
-
-        public List<Note> GetNotes(int userId)
-        {
-            List<Note> notes = new List<Note>();
-
-            using (NpgsqlConnection connection = DatabaseConnection.CreateConnection())
+            using (var connection = DatabaseConnection.CreateConnection())
             {
                 connection.Open();
 
                 string sql = @"
-                    SELECT id, user_id, note_text, created_at, updated_at, is_deleted
-                    FROM notes
-                    WHERE user_id = @user_id
-                    ORDER BY id DESC;";
+                    INSERT INTO notes (note_text, user_id, is_deleted, created_at)
+                    VALUES (@noteText, @userId, FALSE, NOW())
+                    RETURNING id;
+                ";
 
-                using (NpgsqlCommand command = new NpgsqlCommand(sql, connection))
+                using (var command = new NpgsqlCommand(sql, connection))
                 {
-                    command.Parameters.AddWithValue("user_id", userId);
+                    command.Parameters.AddWithValue("@noteText", noteText);
+                    command.Parameters.AddWithValue("@userId", userId);
 
-                    using (NpgsqlDataReader reader = command.ExecuteReader())
+                    object result = command.ExecuteScalar();
+                    noteId = Convert.ToInt32(result);
+                }
+            }
+
+            SecurityLogService logService = new SecurityLogService();
+            logService.AddLog(userId, "NOTE_CREATED", "Создана заметка #" + noteId);
+
+            return noteId;
+        }
+
+        public List<Note> GetNotes(int userId, string role)
+        {
+            List<Note> notes = new List<Note>();
+
+            using (var connection = DatabaseConnection.CreateConnection())
+            {
+                connection.Open();
+
+                string sql;
+
+                if (role == "admin")
+                {
+                    sql = @"
+                        SELECT id, note_text, user_id, created_at, is_deleted
+                        FROM notes
+                        ORDER BY id DESC;
+                    ";
+                }
+                else
+                {
+                    sql = @"
+                        SELECT id, note_text, user_id, created_at, is_deleted
+                        FROM notes
+                        WHERE user_id = @userId
+                        ORDER BY id DESC;
+                    ";
+                }
+
+                using (var command = new NpgsqlCommand(sql, connection))
+                {
+                    command.Parameters.AddWithValue("@userId", userId);
+
+                    using (var reader = command.ExecuteReader())
                     {
                         while (reader.Read())
                         {
                             Note note = new Note();
 
                             note.Id = reader.GetInt32(reader.GetOrdinal("id"));
-                            note.UserId = reader.GetInt32(reader.GetOrdinal("user_id"));
                             note.Text = reader.GetString(reader.GetOrdinal("note_text"));
+                            note.UserId = reader.GetInt32(reader.GetOrdinal("user_id"));
                             note.CreatedAt = reader.GetDateTime(reader.GetOrdinal("created_at"));
-
-                            int updatedAtIndex = reader.GetOrdinal("updated_at");
-                            if (!reader.IsDBNull(updatedAtIndex))
-                                note.UpdatedAt = reader.GetDateTime(updatedAtIndex);
-
                             note.IsDeleted = reader.GetBoolean(reader.GetOrdinal("is_deleted"));
 
                             notes.Add(note);
@@ -70,62 +91,92 @@ namespace NotesShared.Services
             return notes;
         }
 
-        public bool EditNote(int userId, int noteId, string text)
+        public void EditNote(int noteId, int userId, string role, string newText)
         {
-            using (NpgsqlConnection connection = DatabaseConnection.CreateConnection())
+            using (var connection = DatabaseConnection.CreateConnection())
             {
                 connection.Open();
 
-                string sql = "SELECT edit_note(@user_id, @note_id, @note_text);";
+                string sql;
 
-                using (NpgsqlCommand command = new NpgsqlCommand(sql, connection))
+                if (role == "admin")
                 {
-                    command.Parameters.AddWithValue("user_id", userId);
-                    command.Parameters.AddWithValue("note_id", noteId);
-                    command.Parameters.AddWithValue("note_text", text);
+                    sql = @"
+                        UPDATE notes
+                        SET note_text = @newText
+                        WHERE id = @noteId;
+                    ";
+                }
+                else
+                {
+                    sql = @"
+                        UPDATE notes
+                        SET note_text = @newText
+                        WHERE id = @noteId
+                          AND user_id = @userId;
+                    ";
+                }
 
-                    object result = command.ExecuteScalar();
-                    return bool.Parse(result.ToString());
+                using (var command = new NpgsqlCommand(sql, connection))
+                {
+                    command.Parameters.AddWithValue("@noteId", noteId);
+                    command.Parameters.AddWithValue("@userId", userId);
+                    command.Parameters.AddWithValue("@newText", newText);
+
+                    int affectedRows = command.ExecuteNonQuery();
+
+                    if (affectedRows == 0)
+                        throw new Exception("Заметка не найдена или нет прав на изменение.");
                 }
             }
+
+            SecurityLogService logService = new SecurityLogService();
+            logService.AddLog(userId, "NOTE_UPDATED", "Изменена заметка #" + noteId);
         }
 
-        public bool DeleteNote(int userId, int noteId)
+        public void DeleteNote(int noteId, int userId, string role)
         {
-            using (NpgsqlConnection connection = DatabaseConnection.CreateConnection())
+            using (var connection = DatabaseConnection.CreateConnection())
             {
                 connection.Open();
 
-                string sql = "SELECT delete_note(@user_id, @note_id);";
+                string sql;
 
-                using (NpgsqlCommand command = new NpgsqlCommand(sql, connection))
+                if (role == "admin")
                 {
-                    command.Parameters.AddWithValue("user_id", userId);
-                    command.Parameters.AddWithValue("note_id", noteId);
+                    sql = @"
+                        DELETE FROM notes
+                        WHERE id = @noteId;
+                    ";
+                }
+                else
+                {
+                    sql = @"
+                        DELETE FROM notes
+                        WHERE id = @noteId
+                          AND user_id = @userId;
+                    ";
+                }
 
-                    object result = command.ExecuteScalar();
-                    return bool.Parse(result.ToString());
+                using (var command = new NpgsqlCommand(sql, connection))
+                {
+                    command.Parameters.AddWithValue("@noteId", noteId);
+                    command.Parameters.AddWithValue("@userId", userId);
+
+                    int affectedRows = command.ExecuteNonQuery();
+
+                    if (affectedRows == 0)
+                        throw new Exception("Заметка не найдена или нет прав на удаление.");
                 }
             }
+
+            SecurityLogService logService = new SecurityLogService();
+            logService.AddLog(userId, "NOTE_DELETED", "Удалена заметка #" + noteId);
         }
 
-        public bool RestoreNote(int userId, int noteId)
+        public void RestoreNote(int noteId, int userId, string role)
         {
-            using (NpgsqlConnection connection = DatabaseConnection.CreateConnection())
-            {
-                connection.Open();
-
-                string sql = "SELECT restore_note(@user_id, @note_id);";
-
-                using (NpgsqlCommand command = new NpgsqlCommand(sql, connection))
-                {
-                    command.Parameters.AddWithValue("user_id", userId);
-                    command.Parameters.AddWithValue("note_id", noteId);
-
-                    object result = command.ExecuteScalar();
-                    return bool.Parse(result.ToString());
-                }
-            }
+            throw new Exception("Восстановление невозможно: заметки удаляются физически из базы данных.");
         }
     }
 }
