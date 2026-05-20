@@ -1,5 +1,4 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using NotesShared.Config;
 using NotesShared.Services;
 
 namespace NotesUnitTests.TestCollection
@@ -7,67 +6,85 @@ namespace NotesUnitTests.TestCollection
     [TestClass]
     public class UnitTest_AuthService
     {
-        [TestInitialize]
-        public void Init()
-        {
-            AppConfig.UseAuthConnection();
-        }
-
-        [TestMethod]
-        public void Login_AdminWithCorrectPassword_ReturnsTrue()
+        [DataTestMethod]
+        [DataRow("admin", "admin123", true)]
+        [DataRow("user1", "admin123", true)]
+        [DataRow("stat", "admin123", true)]
+        [DataRow("admin", "wrong_password", false)]
+        [DataRow("unknown_user", "admin123", false)]
+        public void Login_WithInputParameters_ReturnsExpectedResult(
+            string username,
+            string password,
+            bool expectedResult)
         {
             AuthService authService = new AuthService();
 
-            bool result = authService.Login("admin", "admin123");
+            bool actualResult = authService.Login(username, password);
 
-            Assert.IsTrue(result);
+            Assert.AreEqual(expectedResult, actualResult);
+        }
+
+        [DataTestMethod]
+        [DataRow("admin", "admin123", "admin")]
+        [DataRow("user1", "admin123", "user")]
+        [DataRow("stat", "admin123", "statistic")]
+        public void Login_WithCorrectUser_ReturnsExpectedRole(
+            string username,
+            string password,
+            string expectedRole)
+        {
+            AuthService authService = new AuthService();
+
+            bool loginResult = authService.Login(username, password);
+
+            Assert.IsTrue(loginResult);
             Assert.IsNotNull(authService.CurrentUser);
-            Assert.AreEqual("admin", authService.CurrentUser.Username);
-            Assert.AreEqual("admin", authService.CurrentUser.Role);
+            Assert.AreEqual(expectedRole, authService.CurrentUser.Role);
         }
 
-        [TestMethod]
-        public void Login_UserWithCorrectPassword_ReturnsTrue()
+        [DataTestMethod]
+        [DataRow("admin", "admin123", "admin", true)]
+        [DataRow("admin", "admin123", "user", false)]
+        [DataRow("admin", "admin123", "statistic", false)]
+        [DataRow("user1", "admin123", "user", true)]
+        [DataRow("user1", "admin123", "admin", false)]
+        [DataRow("user1", "admin123", "statistic", false)]
+        [DataRow("stat", "admin123", "statistic", true)]
+        [DataRow("stat", "admin123", "admin", false)]
+        [DataRow("stat", "admin123", "user", false)]
+        public void HasRole_WithInputParameters_ReturnsExpectedResult(
+            string username,
+            string password,
+            string checkedRole,
+            bool expectedResult)
         {
             AuthService authService = new AuthService();
 
-            bool result = authService.Login("user1", "admin123");
+            bool loginResult = authService.Login(username, password);
 
-            Assert.IsTrue(result);
+            Assert.IsTrue(loginResult);
+
+            bool actualResult = authService.HasRole(checkedRole);
+
+            Assert.AreEqual(expectedResult, actualResult);
+        }
+
+        [DataTestMethod]
+        [DataRow("admin", "admin123")]
+        [DataRow("user1", "admin123")]
+        [DataRow("stat", "admin123")]
+        public void Logout_AfterLogin_UserIsNotLoggedIn(
+            string username,
+            string password)
+        {
+            AuthService authService = new AuthService();
+
+            bool loginResult = authService.Login(username, password);
+
+            Assert.IsTrue(loginResult);
+            Assert.IsTrue(authService.IsLoggedIn);
             Assert.IsNotNull(authService.CurrentUser);
-            Assert.AreEqual("user1", authService.CurrentUser.Username);
-            Assert.AreEqual("user", authService.CurrentUser.Role);
-        }
 
-        [TestMethod]
-        public void Login_StatisticWithCorrectPassword_ReturnsTrue()
-        {
-            AuthService authService = new AuthService();
-
-            bool result = authService.Login("stat", "admin123");
-
-            Assert.IsTrue(result);
-            Assert.IsNotNull(authService.CurrentUser);
-            Assert.AreEqual("stat", authService.CurrentUser.Username);
-            Assert.AreEqual("statistic", authService.CurrentUser.Role);
-        }
-
-        [TestMethod]
-        public void Login_WrongPassword_ReturnsFalse()
-        {
-            AuthService authService = new AuthService();
-
-            bool result = authService.Login("admin", "wrong_password");
-
-            Assert.IsFalse(result);
-        }
-
-        [TestMethod]
-        public void Logout_AfterLogin_UserIsNotLoggedIn()
-        {
-            AuthService authService = new AuthService();
-
-            authService.Login("admin", "admin123");
             authService.Logout();
 
             Assert.IsFalse(authService.IsLoggedIn);

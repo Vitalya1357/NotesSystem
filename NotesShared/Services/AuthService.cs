@@ -18,9 +18,9 @@ namespace NotesShared.Services
 
         public bool Login(string username, string password)
         {
-
-
             string passwordHash = PasswordHasher.Hash(password);
+
+            AppConfig.UseAuthConnection();
 
             using (NpgsqlConnection connection = DatabaseConnection.CreateConnection())
             {
@@ -38,11 +38,16 @@ namespace NotesShared.Services
                         if (reader.Read())
                         {
                             CurrentUser = new User();
+
                             CurrentUser.Id = reader.GetInt32(reader.GetOrdinal("user_id"));
                             CurrentUser.Username = reader.GetString(reader.GetOrdinal("username"));
                             CurrentUser.Role = reader.GetString(reader.GetOrdinal("role_name"));
 
                             string connectionString = reader.GetString(reader.GetOrdinal("connection_string"));
+
+                            if (string.IsNullOrWhiteSpace(connectionString))
+                                return false;
+
                             AppConfig.UseConnectionString(connectionString);
 
                             return true;

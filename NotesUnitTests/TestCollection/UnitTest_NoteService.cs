@@ -1,5 +1,4 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using NotesShared.Models;
 using NotesShared.Services;
 
 namespace NotesUnitTests.TestCollection
@@ -7,37 +6,88 @@ namespace NotesUnitTests.TestCollection
     [TestClass]
     public class UnitTest_NoteService
     {
-        [TestMethod]
-        public void GetLocalStats_ReturnsDeviceName()
+        [DataTestMethod]
+        [DataRow("admin", "admin123", "Заметка от admin", true)]
+        [DataRow("user1", "admin123", "Заметка от user", true)]
+        public void AddNote_WithCorrectInput_ReturnsExpectedResult(
+            string username,
+            string password,
+            string noteText,
+            bool expectedResult)
         {
-            SystemMetricService service = new SystemMetricService();
+            AuthService authService = new AuthService();
 
-            SystemMetric metric = service.GetLocalStats();
+            bool loginResult = authService.Login(username, password);
 
-            Assert.IsNotNull(metric);
-            Assert.IsFalse(string.IsNullOrWhiteSpace(metric.DeviceName));
+            Assert.IsTrue(loginResult);
+
+            NoteService noteService = new NoteService();
+
+            int noteId = noteService.AddNote(
+                authService.CurrentUser.Id,
+                noteText);
+
+            bool actualResult = noteId > 0;
+
+            Assert.AreEqual(expectedResult, actualResult);
         }
 
-        [TestMethod]
-        public void GetLocalStats_ReturnsCorrectPercentRanges()
+        [DataTestMethod]
+        [DataRow("admin", "admin123", "Заметка для удаления от admin")]
+        [DataRow("user1", "admin123", "Заметка для удаления от user")]
+        public void DeleteNote_WithCorrectInput_DoesNotThrowException(
+            string username,
+            string password,
+            string noteText)
         {
-            SystemMetricService service = new SystemMetricService();
+            AuthService authService = new AuthService();
 
-            SystemMetric metric = service.GetLocalStats();
+            bool loginResult = authService.Login(username, password);
 
-            Assert.IsTrue(metric.CpuUsage >= 0 && metric.CpuUsage <= 100);
-            Assert.IsTrue(metric.RamUsage >= 0 && metric.RamUsage <= 100);
-            Assert.IsTrue(metric.HddUsage >= 0 && metric.HddUsage <= 100);
+            Assert.IsTrue(loginResult);
+
+            NoteService noteService = new NoteService();
+
+            int noteId = noteService.AddNote(
+                authService.CurrentUser.Id,
+                noteText);
+
+            noteService.DeleteNote(
+                noteId,
+                authService.CurrentUser.Id,
+                authService.CurrentUser.Role);
+
+            Assert.IsTrue(true);
         }
 
-        [TestMethod]
-        public void GetLocalStats_ReturnsCreatedAt()
+        [DataTestMethod]
+        [DataRow("admin", "admin123", "Заметка до изменения admin", "Заметка после изменения admin")]
+        [DataRow("user1", "admin123", "Заметка до изменения user", "Заметка после изменения user")]
+        public void EditNote_WithCorrectInput_DoesNotThrowException(
+            string username,
+            string password,
+            string oldText,
+            string newText)
         {
-            SystemMetricService service = new SystemMetricService();
+            AuthService authService = new AuthService();
 
-            SystemMetric metric = service.GetLocalStats();
+            bool loginResult = authService.Login(username, password);
 
-            Assert.AreNotEqual(default(System.DateTime), metric.CreatedAt);
+            Assert.IsTrue(loginResult);
+
+            NoteService noteService = new NoteService();
+
+            int noteId = noteService.AddNote(
+                authService.CurrentUser.Id,
+                oldText);
+
+            noteService.EditNote(
+                noteId,
+                authService.CurrentUser.Id,
+                newText,
+                authService.CurrentUser.Role);
+
+            Assert.IsTrue(true);
         }
     }
 }

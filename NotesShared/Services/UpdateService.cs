@@ -1,4 +1,5 @@
 ﻿using NotesShared.Config;
+using NotesShared.Models;
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -22,7 +23,7 @@ namespace NotesShared.Services
                 if (IsNewVersionAvailable(AppConfig.AppVersion, info.Version))
                 {
                     Console.WriteLine("Доступно обновление.");
-                    Console.WriteLine("Ссылка: " + info.Url);
+                    Console.WriteLine("Ссылка: " + info.DownloadUrl);
                 }
                 else
                 {
@@ -68,7 +69,7 @@ namespace NotesShared.Services
 
                 using (WebClient client = new WebClient())
                 {
-                    client.DownloadFile(info.Url, zipPath);
+                    client.DownloadFile(info.DownloadUrl, zipPath);
                 }
 
                 Console.WriteLine("Файл скачан: " + zipPath);
@@ -111,32 +112,41 @@ namespace NotesShared.Services
             }
         }
 
-        private UpdateInfo GetUpdateInfo()
+        public UpdateInfo GetUpdateInfo()
         {
             using (WebClient client = new WebClient())
             {
                 string json = client.DownloadString(AppConfig.UpdateInfoUrl);
 
-                string version = ExtractJsonValue(json, "version");
-                string url = ExtractJsonValue(json, "url");
-
-                if (string.IsNullOrWhiteSpace(version))
-                    throw new Exception("В version.json не найдена версия.");
-
-                if (string.IsNullOrWhiteSpace(url))
-                    throw new Exception("В version.json не найдена ссылка на архив.");
-
-                UpdateInfo info = new UpdateInfo();
-                info.Version = version;
-                info.Url = url;
-
-                return info;
+                return ParseUpdateInfo(json);
             }
         }
 
-        private string ExtractJsonValue(string json, string key)
+        public UpdateInfo ParseUpdateInfo(string json)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+                throw new Exception("version.json пустой.");
+
+            string version = ExtractJsonValue(json, "version");
+            string url = ExtractJsonValue(json, "url");
+
+            if (string.IsNullOrWhiteSpace(version))
+                throw new Exception("В version.json не найдена версия.");
+
+            if (string.IsNullOrWhiteSpace(url))
+                throw new Exception("В version.json не найдена ссылка на архив.");
+
+            UpdateInfo info = new UpdateInfo();
+            info.Version = version;
+            info.DownloadUrl = url;
+
+            return info;
+        }
+
+        public string ExtractJsonValue(string json, string key)
         {
             string pattern = "\"" + key + "\"\\s*:\\s*\"([^\"]+)\"";
+
             Match match = Regex.Match(json, pattern);
 
             if (!match.Success)
@@ -145,7 +155,7 @@ namespace NotesShared.Services
             return match.Groups[1].Value;
         }
 
-        private bool IsNewVersionAvailable(string currentVersion, string latestVersion)
+        public bool IsNewVersionAvailable(string currentVersion, string latestVersion)
         {
             try
             {
@@ -184,6 +194,7 @@ namespace NotesShared.Services
             string notesCliPath = Path.Combine(appDirectory, "NotesCli.exe");
 
             string bat = "";
+
             bat += "@echo off" + Environment.NewLine;
             bat += "chcp 65001 > nul" + Environment.NewLine;
             bat += "echo Обновление NotesSystem..." + Environment.NewLine;
@@ -210,12 +221,6 @@ namespace NotesShared.Services
             bat += "del \"%~f0\"" + Environment.NewLine;
 
             File.WriteAllText(batPath, bat, System.Text.Encoding.Default);
-        }
-
-        private class UpdateInfo
-        {
-            public string Version { get; set; }
-            public string Url { get; set; }
         }
     }
 }
