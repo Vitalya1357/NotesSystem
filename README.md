@@ -577,10 +577,10 @@ NotesUnitTests/TestCollection
 Реализованы тесты:
 
 ```text
-UnitTest_PasswordHasher
 UnitTest_AuthService
-UnitTest_RoleAccess
-UnitTest_SystemMetricService
+UnitTest_DatabaseConnection
+UnitTest_NoteService
+UnitTest_UpdateService
 ```
 
 Проверяются:
@@ -638,10 +638,10 @@ NotesSystem/
 │       └── PasswordHasher.cs
 ├── NotesUnitTests/
 │   └── TestCollection/
-│       ├── UnitTest_PasswordHasher.cs
+│       ├── UnitTest_DatabaseConnection.cs
 │       ├── UnitTest_AuthService.cs
-│       ├── UnitTest_RoleAccess.cs
-│       └── UnitTest_SystemMetricService.cs
+│       ├── UnitTest_NoteService.cs
+│       └── UnitTest_UpdateService.cs
 ├── releases/
 │   └── version.json
 ├── README.md
