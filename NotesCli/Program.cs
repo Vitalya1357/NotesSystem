@@ -1,10 +1,9 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Reflection;
 using NotesShared.Config;
+using NotesShared.Exceptions;
 using NotesShared.Models;
 using NotesShared.Services;
 
@@ -17,6 +16,7 @@ namespace NotesCli
         private static SecurityLogService securityLogService = new SecurityLogService();
         private static SystemMetricService systemMetricService = new SystemMetricService();
         private static UpdateService updateService = new UpdateService();
+        private static UserService userService = new UserService();
 
         static void Main(string[] args)
         {
@@ -47,6 +47,10 @@ namespace NotesCli
                     {
                         case "--help":
                             ShowHelp();
+                            break;
+
+                        case "--register":
+                            Register(parts);
                             break;
 
                         case "--login":
@@ -81,6 +85,18 @@ namespace NotesCli
                             RestoreNote(parts);
                             break;
 
+                        case "--users":
+                            UsersCommand(parts);
+                            break;
+
+                        case "--securityLogs":
+                            SecurityLogs(parts);
+                            break;
+
+                        case "--systemStats":
+                            SystemStats(parts);
+                            break;
+
                         case "--checkUpdate":
                             updateService.CheckUpdate();
                             break;
@@ -93,14 +109,6 @@ namespace NotesCli
                             Console.WriteLine("Текущая версия: " + AppConfig.AppVersion);
                             break;
 
-                        case "--securityLogs":
-                            SecurityLogs(parts);
-                            break;
-
-                        case "--systemStats":
-                            SystemStats(parts);
-                            break;
-
                         case "exit":
                             return;
 
@@ -109,23 +117,55 @@ namespace NotesCli
                             break;
                     }
                 }
+                catch (AccessDeniedException)
+                {
+                    Console.WriteLine(GetAccessDeniedMessage(command));
+                }
                 catch (Exception ex)
                 {
-                    string message = ex.Message.ToLower();
-
-                    if (message.Contains("permission denied") ||
-                        message.Contains("отказано в доступе") ||
-                        message.Contains("нет доступа") ||
-                        message.Contains("42501"))
-                    {
-                        Console.WriteLine("Нет прав на выполнение операции в PostgreSQL.");
-                    }
-                    else
-                    {
-                        Console.WriteLine("Ошибка: " + ex.Message);
-                    }
+                    Console.WriteLine("Ошибка: " + ex.Message);
                 }
             }
+        }
+
+        private static string GetAccessDeniedMessage(string command)
+        {
+            if (command == "--users")
+                return "Нет прав для управления пользователями.";
+
+            if (command == "--securityLogs")
+                return "Нет прав для просмотра журнала безопасности.";
+
+            if (command == "--systemStats")
+                return "Нет прав для просмотра мониторинга.";
+
+            if (command == "--addNewNote" ||
+                command == "--listNotes" ||
+                command == "--editNote" ||
+                command == "--deleteNote" ||
+                command == "--restoreNote")
+                return "Нет прав для работы с заметками.";
+
+            return "Недостаточно прав для выполнения этой команды.";
+        }
+
+        private static void Register(string[] parts)
+        {
+            if (parts.Length < 3)
+            {
+                Console.WriteLine("Использование: --register <username> <password>");
+                return;
+            }
+
+            string username = parts[1];
+            string password = parts[2];
+
+            bool result = userService.RegisterUser(username, password);
+
+            if (result)
+                Console.WriteLine("Регистрация выполнена. Теперь можно войти через --login.");
+            else
+                Console.WriteLine("Не удалось зарегистрироваться. Возможно, пользователь уже существует.");
         }
 
         private static void Login(string[] parts)
@@ -199,8 +239,7 @@ namespace NotesCli
             }
 
             List<Note> notes = noteService.GetNotes(
-                authService.CurrentUser.Id,
-                authService.CurrentUser.Role
+                authService.CurrentUser.Id
             );
 
             if (notes.Count == 0)
@@ -213,6 +252,7 @@ namespace NotesCli
             {
                 Console.WriteLine(
                     note.Id + " | " +
+                    "user_id: " + note.UserId + " | " +
                     note.Text + " | " +
                     note.CreatedAt.ToString("dd.MM.yyyy HH:mm:ss") + " | " +
                     "deleted: " + note.IsDeleted
@@ -234,17 +274,26 @@ namespace NotesCli
                 return;
             }
 
-            int noteId = int.Parse(parts[1]);
+            int noteId;
+
+            if (!int.TryParse(parts[1], out noteId))
+            {
+                Console.WriteLine("ID заметки должен быть числом.");
+                return;
+            }
+
             string newText = parts[2];
 
-            noteService.EditNote(
+            bool result = noteService.EditNote(
                 noteId,
                 authService.CurrentUser.Id,
-                authService.CurrentUser.Role,
                 newText
             );
 
-            Console.WriteLine("Заметка изменена.");
+            if (result)
+                Console.WriteLine("Заметка изменена.");
+            else
+                Console.WriteLine("Заметка не найдена или нет прав.");
         }
 
         private static void DeleteNote(string[] parts)
@@ -261,35 +310,144 @@ namespace NotesCli
                 return;
             }
 
-            int noteId = int.Parse(parts[1]);
+            int noteId;
 
-            noteService.DeleteNote(
+            if (!int.TryParse(parts[1], out noteId))
+            {
+                Console.WriteLine("ID заметки должен быть числом.");
+                return;
+            }
+
+            bool result = noteService.DeleteNote(
                 noteId,
-                authService.CurrentUser.Id,
-                authService.CurrentUser.Role
+                authService.CurrentUser.Id
             );
 
-            Console.WriteLine("Заметка удалена.");
+            if (result)
+                Console.WriteLine("Заметка удалена.");
+            else
+                Console.WriteLine("Заметка не найдена или нет прав.");
         }
 
         private static void RestoreNote(string[] parts)
         {
-            Console.WriteLine("Восстановление невозможно: заметки удаляются физически из базы данных.");
+            if (!authService.IsLoggedIn)
+            {
+                Console.WriteLine("Сначала выполните вход.");
+                return;
+            }
+
+            if (parts.Length < 2)
+            {
+                Console.WriteLine("Использование: --restoreNote <id>");
+                return;
+            }
+
+            int noteId;
+
+            if (!int.TryParse(parts[1], out noteId))
+            {
+                Console.WriteLine("ID заметки должен быть числом.");
+                return;
+            }
+
+            bool result = noteService.RestoreNote(
+                noteId,
+                authService.CurrentUser.Id
+            );
+
+            if (result)
+                Console.WriteLine("Заметка восстановлена.");
+            else
+                Console.WriteLine("Заметка не найдена, уже восстановлена или нет прав.");
         }
 
-        private static void ShowVersion()
+        private static void UsersCommand(string[] parts)
         {
-            Console.WriteLine("Текущая версия: " + AppConfig.AppVersion);
-        }
+            if (!authService.IsLoggedIn)
+            {
+                Console.WriteLine("Сначала выполните вход.");
+                return;
+            }
 
-        private static void CheckUpdate()
-        {
-            updateService.CheckUpdate();
-        }
+            if (parts.Length < 2)
+            {
+                Console.WriteLine("Использование:");
+                Console.WriteLine("--users list");
+                Console.WriteLine("--users add <username> <password> <role>");
+                Console.WriteLine("--users delete <username>");
+                return;
+            }
 
-        private static void Update()
-        {
-            updateService.Update();
+            string action = parts[1];
+
+            if (action == "list")
+            {
+                List<UserInfo> users = userService.GetUsers();
+
+                if (users.Count == 0)
+                {
+                    Console.WriteLine("Пользователей нет.");
+                    return;
+                }
+
+                foreach (UserInfo user in users)
+                {
+                    Console.WriteLine(
+                    user.Id + " | " +
+                    user.Username + " | " +
+                    user.Role + " | " +
+                    user.CreatedAt.ToString("dd.MM.yyyy HH:mm:ss")
+                    );
+                }
+
+                return;
+            }
+
+            if (action == "add")
+            {
+                if (parts.Length < 5)
+                {
+                    Console.WriteLine("Использование: --users add <username> <password> <role>");
+                    Console.WriteLine("Роли: admin, user, statistic");
+                    return;
+                }
+
+                string username = parts[2];
+                string password = parts[3];
+                string role = parts[4];
+
+                bool result = userService.AddUser(username, password, role);
+
+                if (result)
+                    Console.WriteLine("Пользователь добавлен.");
+                else
+                    Console.WriteLine("Не удалось добавить пользователя.");
+
+                return;
+            }
+
+            if (action == "delete")
+            {
+                if (parts.Length < 3)
+                {
+                    Console.WriteLine("Использование: --users delete <username>");
+                    return;
+                }
+
+                string username = parts[2];
+
+                bool result = userService.DeleteUser(username);
+
+                if (result)
+                    Console.WriteLine("Пользователь удален/заблокирован.");
+                else
+                    Console.WriteLine("Пользователь не найден.");
+
+                return;
+            }
+
+            Console.WriteLine("Неизвестное действие для --users.");
         }
 
         private static void SecurityLogs(string[] parts)
@@ -342,6 +500,8 @@ namespace NotesCli
 
             if (parts[1] == "local")
             {
+                systemMetricService.EnsureMonitoringAccess();
+
                 SystemMetric metric = systemMetricService.GetLocalStats();
 
                 Console.WriteLine(
@@ -384,72 +544,6 @@ namespace NotesCli
             Console.WriteLine("Неизвестный параметр. Использование: --systemStats local или --systemStats history");
         }
 
-        private static object CallFirstExistingMethod(object service, string[] methodNames)
-        {
-            Type type = service.GetType();
-
-            foreach (string methodName in methodNames)
-            {
-                MethodInfo method = type.GetMethod(methodName, Type.EmptyTypes);
-
-                if (method != null)
-                {
-                    return method.Invoke(service, null);
-                }
-            }
-
-            return null;
-        }
-
-        private static void PrintCollection(object result)
-        {
-            IEnumerable collection = result as IEnumerable;
-
-            if (collection == null || result is string)
-            {
-                PrintObject(result);
-                return;
-            }
-
-            bool hasItems = false;
-
-            foreach (object item in collection)
-            {
-                hasItems = true;
-                PrintObject(item);
-            }
-
-            if (!hasItems)
-            {
-                Console.WriteLine("Данных нет.");
-            }
-        }
-
-        private static void PrintObject(object obj)
-        {
-            if (obj == null)
-            {
-                Console.WriteLine("Данных нет.");
-                return;
-            }
-
-            PropertyInfo[] properties = obj.GetType().GetProperties();
-
-            string line = "";
-
-            foreach (PropertyInfo property in properties)
-            {
-                object value = property.GetValue(obj, null);
-
-                if (line.Length > 0)
-                    line += " | ";
-
-                line += property.Name + ": " + value;
-            }
-
-            Console.WriteLine(line);
-        }
-
         private static void StartWatcherConsole()
         {
             try
@@ -479,24 +573,43 @@ namespace NotesCli
         {
             Console.WriteLine(@"
 Доступные команды:
---login <username> <password>           Вход в систему
---logout                                Выход из системы
---myrole                                Показать текущую роль
---addNewNote ""текст""                   Создать заметку
---listNotes                             Показать свои заметки
---editNote <id> ""текст""                Изменить заметку
---deleteNote <id>                       Удалить заметку
---restoreNote <id>                      Восстановить заметку
---help                                  Показать справку
---version                               Показать текущую версию
---checkUpdate                           Проверить обновления через GitHub
---update                                Скачать обновление
---securityLogs list                     Показать последние 50 логов безопасности
---systemStats local                     Показать CPU/RAM/HDD текущего устройства
---systemStats history                   Показать последние записи статистики из БД
-exit                                    Закрыть приложение
+
+Авторизация:
+--register <username> <password>           Регистрация пользователя
+--login <username> <password>              Вход в систему
+--logout                                   Выход из системы
+--myrole                                   Показать текущую роль
+
+Заметки:
+--addNewNote ""текст""                     Создать заметку
+--listNotes                                Показать заметки
+--editNote <id> ""текст""                  Изменить заметку
+--deleteNote <id>                          Удалить заметку
+--restoreNote <id>                         Восстановить заметку
+
+Пользователи:
+--users list                               Показать пользователей
+--users add <username> <password> <role>   Добавить пользователя
+--users delete <username>                  Удалить/заблокировать пользователя
+
+Мониторинг:
+--systemStats local                        Показать CPU/RAM/HDD текущего устройства
+--systemStats history                      Показать последние записи статистики из БД
+
+Безопасность:
+--securityLogs list                        Показать последние 50 логов безопасности
+
+Обновления:
+--version                                  Показать текущую версию
+--checkUpdate                              Проверить обновления через GitHub
+--update                                   Скачать обновление
+
+Прочее:
+--help                                     Показать справку
+exit                                       Закрыть приложение
 
 Примеры:
+--register newuser password123
 --login admin admin123
 --login user1 admin123
 --login stat admin123

@@ -2,18 +2,12 @@
 
 namespace NotesShared.Models
 {
-    public class SecurityLog
+    public class UserInfo
     {
         public int Id { get; set; }
-
-        public int? UserId { get; set; }
-
         public string Username { get; set; }
-
-        public string EventType { get; set; }
-
-        public string Description { get; set; }
-
+        public string Role { get; set; }
+        public bool IsBlocked { get; set; }
         public DateTime CreatedAt { get; set; }
     }
 }

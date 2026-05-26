@@ -1,5 +1,6 @@
 ﻿using NotesShared.Database;
 using NotesShared.Models;
+using NotesShared.Utils;
 using Npgsql;
 using System;
 using System.Collections.Generic;
@@ -12,6 +13,24 @@ namespace NotesShared.Services
 {
     public class SystemMetricService
     {
+        public void EnsureMonitoringAccess()
+        {
+            DbErrorTranslator.Execute(() =>
+            {
+                using (NpgsqlConnection connection = DatabaseConnection.CreateConnection())
+                {
+                    connection.Open();
+
+                    string sql = "SELECT 1 FROM system_metrics LIMIT 0;";
+
+                    using (NpgsqlCommand command = new NpgsqlCommand(sql, connection))
+                    {
+                        command.ExecuteNonQuery();
+                    }
+                }
+            });
+        }
+
         public SystemMetric GetLocalStats()
         {
             string deviceName = Environment.MachineName;
@@ -34,83 +53,88 @@ namespace NotesShared.Services
 
         public void SaveLocalStats()
         {
-            SystemMetric metric = GetLocalStats();
-
-            using (var connection = DatabaseConnection.CreateConnection())
+            DbErrorTranslator.Execute(() =>
             {
-                connection.Open();
+                SystemMetric metric = GetLocalStats();
 
-                int deviceId = GetOrCreateDeviceId(
-                    connection,
-                    metric.DeviceName,
-                    metric.IpAddress
-                );
-
-                string sql = @"
-                    INSERT INTO system_metrics
-                        (device_id, cpu_usage, ram_usage, hdd_usage, created_at)
-                    VALUES
-                        (@deviceId, @cpuUsage, @ramUsage, @hddUsage, @createdAt);
-                ";
-
-                using (var command = new NpgsqlCommand(sql, connection))
+                using (NpgsqlConnection connection = DatabaseConnection.CreateConnection())
                 {
-                    command.Parameters.AddWithValue("@deviceId", deviceId);
-                    command.Parameters.AddWithValue("@cpuUsage", metric.CpuUsage);
-                    command.Parameters.AddWithValue("@ramUsage", metric.RamUsage);
-                    command.Parameters.AddWithValue("@hddUsage", metric.HddUsage);
-                    command.Parameters.AddWithValue("@createdAt", metric.CreatedAt);
+                    connection.Open();
 
-                    command.ExecuteNonQuery();
+                    int deviceId = GetOrCreateDeviceId(
+                        connection,
+                        metric.DeviceName,
+                        metric.IpAddress
+                    );
+
+                    string sql = @"
+                        INSERT INTO system_metrics
+                            (device_id, cpu_usage, ram_usage, hdd_usage, created_at)
+                        VALUES
+                            (@deviceId, @cpuUsage, @ramUsage, @hddUsage, @createdAt);
+                    ";
+
+                    using (NpgsqlCommand command = new NpgsqlCommand(sql, connection))
+                    {
+                        command.Parameters.AddWithValue("deviceId", deviceId);
+                        command.Parameters.AddWithValue("cpuUsage", metric.CpuUsage);
+                        command.Parameters.AddWithValue("ramUsage", metric.RamUsage);
+                        command.Parameters.AddWithValue("hddUsage", metric.HddUsage);
+                        command.Parameters.AddWithValue("createdAt", metric.CreatedAt);
+
+                        command.ExecuteNonQuery();
+                    }
                 }
-            }
+            });
         }
 
         public List<SystemMetric> GetHistory()
         {
-            List<SystemMetric> metrics = new List<SystemMetric>();
-
-            using (var connection = DatabaseConnection.CreateConnection())
+            return DbErrorTranslator.Execute<List<SystemMetric>>(() =>
             {
-                connection.Open();
+                List<SystemMetric> metrics = new List<SystemMetric>();
 
-                string sql = @"
-                    SELECT
-                        d.device_name AS device_name,
-                        d.ip_address,
-                        sm.cpu_usage,
-                        sm.ram_usage,
-                        sm.hdd_usage,
-                        sm.created_at
-                    FROM system_metrics sm
-                    JOIN devices d ON sm.device_id = d.id
-                    ORDER BY sm.created_at DESC
-                    LIMIT 50;
-                ";
-
-                using (var command = new NpgsqlCommand(sql, connection))
+                using (NpgsqlConnection connection = DatabaseConnection.CreateConnection())
                 {
-                    using (var reader = command.ExecuteReader())
-                    {
-                        while (reader.Read())
-                        {
-                            SystemMetric metric = new SystemMetric
-                            {
-                                DeviceName = reader.GetString(reader.GetOrdinal("device_name")),
-                                IpAddress = reader.GetString(reader.GetOrdinal("ip_address")),
-                                CpuUsage = Convert.ToDouble(reader["cpu_usage"]),
-                                RamUsage = Convert.ToDouble(reader["ram_usage"]),
-                                HddUsage = Convert.ToDouble(reader["hdd_usage"]),
-                                CreatedAt = reader.GetDateTime(reader.GetOrdinal("created_at"))
-                            };
+                    connection.Open();
 
-                            metrics.Add(metric);
+                    string sql = @"
+                        SELECT
+                            d.device_name AS device_name,
+                            d.ip_address,
+                            sm.cpu_usage,
+                            sm.ram_usage,
+                            sm.hdd_usage,
+                            sm.created_at
+                        FROM system_metrics sm
+                        JOIN devices d ON sm.device_id = d.id
+                        ORDER BY sm.created_at DESC
+                        LIMIT 50;
+                    ";
+
+                    using (NpgsqlCommand command = new NpgsqlCommand(sql, connection))
+                    {
+                        using (NpgsqlDataReader reader = command.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                SystemMetric metric = new SystemMetric();
+
+                                metric.DeviceName = reader.GetString(reader.GetOrdinal("device_name"));
+                                metric.IpAddress = reader.GetString(reader.GetOrdinal("ip_address"));
+                                metric.CpuUsage = Convert.ToDouble(reader["cpu_usage"]);
+                                metric.RamUsage = Convert.ToDouble(reader["ram_usage"]);
+                                metric.HddUsage = Convert.ToDouble(reader["hdd_usage"]);
+                                metric.CreatedAt = reader.GetDateTime(reader.GetOrdinal("created_at"));
+
+                                metrics.Add(metric);
+                            }
                         }
                     }
                 }
-            }
 
-            return metrics;
+                return metrics;
+            });
         }
 
         private int GetOrCreateDeviceId(NpgsqlConnection connection, string deviceName, string ipAddress)
@@ -118,13 +142,13 @@ namespace NotesShared.Services
             string selectSql = @"
                 SELECT id
                 FROM devices
-                WHERE name = @name
+                WHERE device_name = @deviceName
                 LIMIT 1;
             ";
 
-            using (var command = new NpgsqlCommand(selectSql, connection))
+            using (NpgsqlCommand command = new NpgsqlCommand(selectSql, connection))
             {
-                command.Parameters.AddWithValue("@name", deviceName);
+                command.Parameters.AddWithValue("deviceName", deviceName);
 
                 object result = command.ExecuteScalar();
 
@@ -133,15 +157,15 @@ namespace NotesShared.Services
             }
 
             string insertSql = @"
-                INSERT INTO devices (name, ip_address)
-                VALUES (@name, @ipAddress)
+                INSERT INTO devices (device_name, ip_address)
+                VALUES (@deviceName, @ipAddress)
                 RETURNING id;
             ";
 
-            using (var command = new NpgsqlCommand(insertSql, connection))
+            using (NpgsqlCommand command = new NpgsqlCommand(insertSql, connection))
             {
-                command.Parameters.AddWithValue("@name", deviceName);
-                command.Parameters.AddWithValue("@ipAddress", ipAddress);
+                command.Parameters.AddWithValue("deviceName", deviceName);
+                command.Parameters.AddWithValue("ipAddress", ipAddress);
 
                 object result = command.ExecuteScalar();
 

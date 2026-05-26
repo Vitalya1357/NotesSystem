@@ -1,0 +1,61 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestInputData>
+
+	<AuthCases>
+		<Case id="AUTH-01" title="Успешная авторизация" login="admin" password="admin123" expected="true" role="admin" />
+		<Case id="AUTH-02" title="Неверный пароль" login="admin" password="wrong123" expected="false" role="" />
+		<Case id="AUTH-03" title="Пустой логин" login="" password="admin123" expected="false" role="" />
+		<Case id="AUTH-04" title="Пустой пароль" login="admin" password="" expected="false" role="" />
+	</AuthCases>
+
+	<RegisterCases>
+		<Case id="REG-01" title="Корректная регистрация" login="newuser" password="password123" role="user" expected="true" />
+		<Case id="REG-02" title="Короткий пароль" login="shortpass" password="123" role="user" expected="false" />
+		<Case id="REG-03" title="Неизвестная роль" login="badrole" password="password123" role="manager" expected="false" />
+	</RegisterCases>
+
+	<RoleCases>
+		<Case id="ROLE-01" title="Права администратора" role="admin" users="true" logs="true" monitoring="true" notes="true" />
+		<Case id="ROLE-02" title="Права пользователя" role="user" users="false" logs="false" monitoring="false" notes="true" />
+		<Case id="ROLE-03" title="Права статистика" role="statistic" users="false" logs="false" monitoring="true" notes="false" />
+	</RoleCases>
+
+	<ConnectionCases>
+		<Case id="DB-01" title="Строка подключения admin" connection="Host=localhost;Port=5432;Database=NotesSystemDB;Username=notes_admin;Password=admin123" expected="true" />
+		<Case id="DB-02" title="Строка подключения user" connection="Host=localhost;Port=5432;Database=NotesSystemDB;Username=notes_user;Password=user123" expected="true" />
+		<Case id="DB-03" title="Строка подключения statistic" connection="Host=localhost;Port=5432;Database=NotesSystemDB;Username=notes_statistic;Password=stat123" expected="true" />
+		<Case id="DB-04" title="Пустая строка подключения" connection="" expected="false" />
+	</ConnectionCases>
+
+	<PostgresBanCases>
+		<Case id="PG-01" title="Запрет postgres" connection="Host=localhost;Port=5432;Database=NotesSystemDB;Username=postgres;Password=postgres" expected="false" />
+		<Case id="PG-02" title="Разрешенный пользователь БД" connection="Host=localhost;Port=5432;Database=NotesSystemDB;Username=notes_user;Password=user123" expected="true" />
+	</PostgresBanCases>
+
+	<ConnectionErrorCases>
+		<Case id="DBERR-01" title="Нет Host" connection="Port=5432;Database=NotesSystemDB;Username=notes_user;Password=user123" expected="false" />
+		<Case id="DBERR-02" title="Нет Database" connection="Host=localhost;Port=5432;Username=notes_user;Password=user123" expected="false" />
+		<Case id="DBERR-03" title="Нет Username" connection="Host=localhost;Port=5432;Database=NotesSystemDB;Password=user123" expected="false" />
+	</ConnectionErrorCases>
+
+	<NoteCases>
+		<Case id="NOTE-01" title="Добавление заметки" action="add" userId="1" text="Тестовая заметка" search="" expected="true" />
+		<Case id="NOTE-02" title="Пустая заметка" action="add" userId="1" text="" search="" expected="false" />
+		<Case id="NOTE-03" title="Поиск заметки" action="search" userId="1" text="Заметка для поиска" search="поиска" expected="true" />
+		<Case id="NOTE-04" title="Редактирование заметки" action="edit" userId="1" text="Новый текст заметки" search="" expected="true" />
+		<Case id="NOTE-05" title="Удаление заметки" action="delete" userId="1" text="Заметка для удаления" search="" expected="true" />
+	</NoteCases>
+
+	<UpdateCases>
+		<Case id="UPD-01" title="Есть обновление" current="1.0.0" json="{ &quot;version&quot;: &quot;1.0.1&quot;, &quot;url&quot;: &quot;https://example.com/NotesSystem.zip&quot; }" status="200" expected="true" />
+		<Case id="UPD-02" title="Ответ API без zip" current="1.0.0" json="{ &quot;version&quot;: &quot;1.0.1&quot;, &quot;url&quot;: &quot;https://example.com/NotesSystem.txt&quot; }" status="200" expected="false" />
+		<Case id="UPD-03" title="Ошибка API" current="1.0.0" json="server error" status="500" expected="false" />
+	</UpdateCases>
+
+	<InstallerCases>
+		<Case id="INST-01" title="Корректные параметры установщика" path="C:\NotesSystem" database="NotesSystemDB" expected="true" />
+		<Case id="INST-02" title="Пустой путь установки" path="" database="NotesSystemDB" expected="false" />
+		<Case id="INST-03" title="Пустое имя БД" path="C:\NotesSystem" database="" expected="false" />
+	</InstallerCases>
+
+</TestInputData>

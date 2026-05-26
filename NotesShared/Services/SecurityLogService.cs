@@ -1,5 +1,6 @@
 ﻿using NotesShared.Database;
 using NotesShared.Models;
+using NotesShared.Utils;
 using Npgsql;
 using System;
 using System.Collections.Generic;
@@ -10,75 +11,87 @@ namespace NotesShared.Services
     {
         public List<SecurityLog> GetSecurityLogs()
         {
-            List<SecurityLog> logs = new List<SecurityLog>();
-
-            using (var connection = DatabaseConnection.CreateConnection())
+            return DbErrorTranslator.Execute<List<SecurityLog>>(() =>
             {
-                connection.Open();
+                List<SecurityLog> logs = new List<SecurityLog>();
 
-                string sql = @"
-                    SELECT
-                        sl.id,
-                        sl.user_id,
-                        u.username,
-                        sl.event_type,
-                        sl.description,
-                        sl.created_at
-                    FROM security_logs sl
-                    LEFT JOIN users u ON sl.user_id = u.id
-                    ORDER BY sl.created_at DESC
-                    LIMIT 50;
-                ";
-
-                using (var command = new NpgsqlCommand(sql, connection))
+                using (NpgsqlConnection connection = DatabaseConnection.CreateConnection())
                 {
-                    using (var reader = command.ExecuteReader())
+                    connection.Open();
+
+                    string sql = @"
+                        SELECT
+                            sl.id,
+                            sl.user_id,
+                            u.username,
+                            sl.event_type,
+                            sl.description,
+                            sl.created_at
+                        FROM security_logs sl
+                        LEFT JOIN users u ON sl.user_id = u.id
+                        ORDER BY sl.id DESC
+                        LIMIT 50;
+                    ";
+
+                    using (NpgsqlCommand command = new NpgsqlCommand(sql, connection))
                     {
-                        while (reader.Read())
+                        using (NpgsqlDataReader reader = command.ExecuteReader())
                         {
-                            SecurityLog log = new SecurityLog();
+                            while (reader.Read())
+                            {
+                                SecurityLog log = new SecurityLog();
 
-                            log.Id = reader.GetInt32(reader.GetOrdinal("id"));
-                            log.UserId = reader.GetInt32(reader.GetOrdinal("user_id"));
+                                log.Id = reader.GetInt32(reader.GetOrdinal("id"));
 
-                            if (reader.IsDBNull(reader.GetOrdinal("username")))
-                                log.Username = "unknown";
-                            else
-                                log.Username = reader.GetString(reader.GetOrdinal("username"));
+                                int userIdIndex = reader.GetOrdinal("user_id");
+                                if (reader.IsDBNull(userIdIndex))
+                                    log.UserId = null;
+                                else
+                                    log.UserId = reader.GetInt32(userIdIndex);
 
-                            log.EventType = reader.GetString(reader.GetOrdinal("event_type"));
-                            log.Description = reader.GetString(reader.GetOrdinal("description"));
-                            log.CreatedAt = reader.GetDateTime(reader.GetOrdinal("created_at"));
+                                int usernameIndex = reader.GetOrdinal("username");
+                                if (reader.IsDBNull(usernameIndex))
+                                    log.Username = "system";
+                                else
+                                    log.Username = reader.GetString(usernameIndex);
 
-                            logs.Add(log);
+                                log.EventType = reader.GetString(reader.GetOrdinal("event_type"));
+                                log.Description = reader.GetString(reader.GetOrdinal("description"));
+                                log.CreatedAt = reader.GetDateTime(reader.GetOrdinal("created_at"));
+
+                                logs.Add(log);
+                            }
                         }
                     }
                 }
-            }
 
-            return logs;
+                return logs;
+            });
         }
 
         public void AddLog(int userId, string eventType, string description)
         {
-            using (var connection = DatabaseConnection.CreateConnection())
+            DbErrorTranslator.Execute(() =>
             {
-                connection.Open();
-
-                string sql = @"
-                    INSERT INTO security_logs (user_id, event_type, description, created_at)
-                    VALUES (@userId, @eventType, @description, NOW());
-                ";
-
-                using (var command = new NpgsqlCommand(sql, connection))
+                using (NpgsqlConnection connection = DatabaseConnection.CreateConnection())
                 {
-                    command.Parameters.AddWithValue("@userId", userId);
-                    command.Parameters.AddWithValue("@eventType", eventType);
-                    command.Parameters.AddWithValue("@description", description);
+                    connection.Open();
 
-                    command.ExecuteNonQuery();
+                    string sql = @"
+                        INSERT INTO security_logs (user_id, event_type, description, created_at)
+                        VALUES (@userId, @eventType, @description, NOW());
+                    ";
+
+                    using (NpgsqlCommand command = new NpgsqlCommand(sql, connection))
+                    {
+                        command.Parameters.AddWithValue("userId", userId);
+                        command.Parameters.AddWithValue("eventType", eventType);
+                        command.Parameters.AddWithValue("description", description);
+
+                        command.ExecuteNonQuery();
+                    }
                 }
-            }
+            });
         }
     }
 }

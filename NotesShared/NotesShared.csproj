@@ -78,17 +78,21 @@
   <ItemGroup>
     <Compile Include="Config\AppConfig.cs" />
     <Compile Include="Database\DatabaseConnection.cs" />
+    <Compile Include="Exceptions\AccessDeniedException.cs" />
     <Compile Include="Models\Note.cs" />
     <Compile Include="Models\SecurityLog.cs" />
     <Compile Include="Models\SystemMetric.cs" />
     <Compile Include="Models\UpdateInfo.cs" />
     <Compile Include="Models\User.cs" />
+    <Compile Include="Models\UserInfo.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Services\AuthService.cs" />
     <Compile Include="Services\NoteService.cs" />
     <Compile Include="Services\SecurityLogService.cs" />
     <Compile Include="Services\SystemMetricService.cs" />
     <Compile Include="Services\UpdateService.cs" />
+    <Compile Include="Services\UserService.cs" />
+    <Compile Include="Utils\DbErrorTranslator.cs" />
     <Compile Include="Utils\PasswordHasher.cs" />
   </ItemGroup>
   <ItemGroup>
